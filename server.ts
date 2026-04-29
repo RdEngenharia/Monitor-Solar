@@ -67,24 +67,32 @@ async function analisarLead(titulo: string, snippet: string) {
   try {
     const model = getGenAI().getGenerativeModel({ model: "gemini-1.5-flash" });
     const prompt = `
-      Você é um engenheiro de dados especialista em prospecção para a RD Engenharia (Bahia).
-      Analise se este post é uma OPORTUNIDADE REAL ou RUÍDO.
+      Você é um Engenheiro de Dados Sênior especialista em prospecção técnica para a RD Engenharia (Bahia).
+      Sua missão é validar se este post é um LEAD QUENTE ou RUÍDO DE MERCADO.
 
-      Texto: ${titulo} - ${snippet}
+      Texto do Post: "${titulo} - ${snippet}"
 
-      REGRAS DE FILTRAGEM (RD ENGENHARIA):
-      1. IDENTIFIQUE A INTENÇÃO: O autor é um cliente procurando um engenheiro ou é empresa postando propaganda?
-      2. IGNORE: Marketing, agradecer a parceiro, propaganda de instalador solar.
-      3. APROVE: Perguntas diretas ('Alguém conhece...', 'Preciso de...', 'Indicação de engenheiro...').
-      4. FOCO TÉCNICO: Aumento de carga, homologação Coelba, alteração de rateio.
-      5. GEOGRAFIA: Identifique a CIDADE mencionada.
+      CRITÉRIOS DE FILTRAGEM (RD ENGENHARIA):
+      1. REGRAS DE EXCLUSÃO (RETORNE RUÍDO):
+         - Marketing ou propaganda de outras empresas.
+         - Agradecimentos a parceiros (ex: 'fulano chegou por indicação', 'parceria fechada').
+         - Posts de instaladores solares vendendo kits.
+         - Conteúdo amador sem intenção de contratação.
+      
+      2. REGRAS DE APROVAÇÃO (RETORNE URGENTE/NORMAL):
+         - Pedidos diretos de indicação ("Alguém conhece um engenheiro?").
+         - Dúvidas técnicas sobre HOMOLOGAÇÃO COELBA ou RATEIO.
+         - Problemas com AUMENTO DE CARGA ou REFORMA DE PADRÃO.
+         - Pedidos de orçamento para projeto elétrico ou solar.
+
+      3. GEOGRAFIA: Identifique a CIDADE mencionada na Bahia. Se não houver, use 'Bahia (Geral)'.
 
       Responda EXCLUSIVAMENTE em JSON:
       {
         "status": "URGENTE" | "NORMAL" | "RUÍDO",
-        "categoria": "Oportunidade" | "Homologação" | "Coelba" | "Spam",
-        "localizacao": "Cidade identificada ou 'Bahia (Geral)'",
-        "justificativa": "breve explicação"
+        "categoria": "Oportunidade" | "Homologação" | "Coelba" | "Infraestrutura",
+        "localizacao": "Nome da Cidade",
+        "justificativa": "Explicação técnica curta de por que foi aprovado ou descartado"
       }
     `;
 
@@ -93,10 +101,10 @@ async function analisarLead(titulo: string, snippet: string) {
     const analise = JSON.parse(text);
 
     // Se for um lead real, envia notificação Push (Gatilho de Alerta)
-    if (analise.status !== "RUÍDO" && analise.categoria !== "Spam") {
+    if (analise.status !== "RUÍDO") {
       await enviarPush(
         `🚨 NOVO LEAD - RD ENGENHARIA`,
-        `📍 Local: ${analise.localizacao}\n📝 Pedido: ${titulo}\n📄 Resumo: ${analise.justificativa}`
+        `📍 Local: ${analise.localizacao}\n📝 Pedido: ${titulo}\n💡 Motivo: ${analise.justificativa}`
       );
     }
 

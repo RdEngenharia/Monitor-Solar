@@ -84,27 +84,28 @@ def prospeccao_rd_engenharia(request):
 
             # 2. Processamento com IA (Gemini) - REGRAS FILTRAGEM RD ENGENHARIA
             prompt = f"""
-            Você é um especialista em prospecção técnica para a RD Engenharia (Bahia).
-            Analise este post:
-            
+            Você é um Engenheiro de Dados Sênior especialista em prospecção técnica para a RD Engenharia (Bahia).
+            Validar se este post é um LEAD QUENTE ou RUÍDO.
+
             Texto: {titulo} - {snippet}
             
-            REGRAS DE FILTRAGEM (RD ENGENHARIA):
-            1. IDENTIFIQUE A INTENÇÃO: O autor é cliente procurando engenheiro ou empresa fazendo propaganda?
-            2. IGNORE: Marketing, parceiros e propagandas de instaladores solares.
-            3. APROVE: Apenas perguntas diretas ('Alguém conhece...', 'Preciso de...', 'Indicação de engenheiro...').
-            4. FOCO TÉCNICO: Aumento de carga, homologação Coelba, alteração de rateio.
-            5. GEOGRAFIA: Identifique a CIDADE mencionada.
+            CRITÉRIOS DE FILTRAGEM (RD ENGENHARIA):
+            1. REGRAS DE EXCLUSÃO (RETORNE RUÍDO):
+               - Marketing, propaganda de concorrentes ou agradecimentos.
+               - Posts de instaladores solares vendendo kits.
             
-            Se for propaganda ou ruído, retorne "status": "RUÍDO".
-            Se for um lead real, classifique como "NORMAL" ou "URGENTE".
+            2. REGRAS DE APROVAÇÃO:
+               - Pedidos diretos de indicação ("Alguém conhece um engenheiro?").
+               - Dúvidas sobre HOMOLOGAÇÃO COELBA, RATEIO ou AUMENTO DE CARGA.
+            
+            3. GEOGRAFIA: Identifique a CIDADE na Bahia.
 
             Responda EXCLUSIVAMENTE em JSON:
             {{
                 "status": "URGENTE" | "NORMAL" | "RUÍDO",
-                "categoria": "Oportunidade" | "Homologação" | "Coelba",
-                "localizacao": "Cidade identificada ou 'Bahia (Geral)'",
-                "motivo": "breve justificativa"
+                "categoria": "Oportunidade" | "Homologação" | "Coelba" | "Infraestrutura",
+                "localizacao": "Cidade",
+                "motivo": "justificativa técnica"
             }}
             """
             

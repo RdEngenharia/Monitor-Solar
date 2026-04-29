@@ -1,8 +1,7 @@
 {
-  "crons": [
-    {
-      "path": "/api/monitor",
-      "schedule": "0 * * * *" 
-    }
+  "version": 2,
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.ts" },
+    { "source": "/(.*)", "destination": "/" }
   ]
 }
