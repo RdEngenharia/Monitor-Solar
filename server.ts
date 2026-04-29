@@ -85,39 +85,33 @@ async function startServer() {
       return res.status(500).json({ error: "Configuração ausente: SERPER_API_KEY." });
     }
     const termos = [
-      // Perguntas e Indicações - Facebook (Porto Seguro e Região)
-      'site:facebook.com "Porto Seguro" "alguém indica" "engenheiro" "padrão" -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Trancoso" "quem faz" "homologação" "Coelba" -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "rateio" "energia solar" "grupo" -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "alguém indica" "projeto elétrico" -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "quem indica" "aumento de carga" trifásico -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "preciso de um" "engenheiro eletricista" -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "alguém conhece" "homologação solar" -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "orçamento" "projeto elétrico" residencial -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "alteração de padrão" Coelba quem faz? -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "dividir luz" entre casas rateio -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Arraial d\'Ajuda" "alguém indica" engenheiro Coelba -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Trancoso" "preciso de indicação" padrão de energia -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "readequação de ramal" Coelba preço -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "homologação de microgeração" indicação -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Teixeira de Freitas" "alguém indica" engenheiro solar -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Eunápolis" "quem faz" projetos Coelba -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "engenheiro para legalizar" solar -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "troca de titularidade" Coelba problemas -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "memorial descritivo" Coelba engenheiro -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "aumento de carga" para ar condicionado -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "energia solar em condomínio" rateio -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "medidor bidirecional" Coelba demora -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "engenheiro eletrotécnico" contato -notícia -curso -vaga -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "projeto aprovado" Coelba quem faz? -notícia -curso -vaga -"reclame aqui"',
+      // Perguntas e Indicações Diretas (Exatas do Usuário)
+      'site:facebook.com "Porto Seguro" "alguém indica" "engenheiro" "padrão" -notícia -curso -vaga -emprego -"reclame aqui"',
+      'site:facebook.com "Trancoso" "quem faz" "homologação" "Coelba" -notícia -curso -vaga -emprego -"reclame aqui"',
+      'site:instagram.com "Arraial d\'Ajuda" "indicação" "alteração de carga" -notícia -curso -vaga -emprego -"reclame aqui"',
+      'site:facebook.com "Porto Seguro" "rateio" "energia solar" "grupo" -notícia -curso -vaga -emprego -"reclame aqui"',
 
-      // Instagram (Leads em comentários/posts)
-      'site:instagram.com "Arraial d\'Ajuda" "indicação" "alteração de carga" -notícia -curso -vaga -"reclame aqui"',
-      'site:instagram.com "Porto Seguro" "quem indica" engenheiro elétrico -notícia -curso -vaga -"reclame aqui"',
-      'site:instagram.com "Arraial d\'Ajuda" "engenheiro de confiança" Coelba -notícia -curso -vaga -"reclame aqui"',
-      'site:instagram.com "Trancoso" "projeto elétrico" orçamento -notícia -curso -vaga -"reclame aqui"',
-      'site:instagram.com "Porto Seguro" "assessoria" Coelba energia solar -notícia -curso -vaga -"reclame aqui"',
-      'site:instagram.com "Bahia" "homologação solar" indicação -notícia -curso -vaga -"reclame aqui"'
+      // Variações Criativas de Alta Intenção
+      'site:facebook.com "Porto Seguro" "quem faz" "projeto elétrico" residencial -notícia -curso -vaga -emprego',
+      'site:facebook.com "Porto Seguro" "indicação" "aumento de carga" trifásico -notícia -curso -vaga -emprego',
+      'site:facebook.com "Trancoso" "alguém indica" engenheiro Coelba -notícia -curso -vaga -emprego',
+      'site:facebook.com "Arraial d\'Ajuda" "preciso de um" engenheiro eletricista -notícia -curso -vaga -emprego',
+      'site:facebook.com "Porto Seguro" "padrão monofásico para trifásico" custo -notícia -curso -vaga -emprego',
+      'site:facebook.com "Porto Seguro" "dividir energia solar" entre casas -notícia -curso -vaga -emprego',
+      'site:facebook.com "Bahia" "homologação de microgeração" Coelba passo a passo -notícia -curso -vaga -emprego',
+      
+      // Google Search (Perguntas em Blogs e Fóruns)
+      '"alguém indica" engenheiro para aumento de carga em Porto Seguro',
+      '"como fazer" rateio de energia solar entre casas Coelba',
+      'Projeto de "homologação de energia solar" preço Bahia',
+      'Alteração de "padrão de energia" para trifásico Coelba Porto Seguro',
+      'Engenheiro para "legalizar" energia solar Coelba Porto Seguro',
+      '"quem projeta" entrada de serviço padrão Coelba Porto Seguro',
+      
+      // Instagram (Busca de termos em publicações)
+      'site:instagram.com "Porto Seguro" "engenheiro elétrico" indicação -vaga',
+      'site:instagram.com "Trancoso" "homologação solar" Coelba -vaga',
+      'site:instagram.com "Arraial d\'Ajuda" "projeto elétrico" orçamento -vaga'
     ];
 
     try {
@@ -196,16 +190,34 @@ async function startServer() {
   // API para limpar histórico
   app.delete("/api/clear", async (req, res) => {
     try {
+      console.log("Solicitação de limpeza de histórico recebida...");
       const snapshot = await getDocs(collection(db, 'solar_mentions'));
-      const batch = writeBatch(db);
-      snapshot.docs.forEach((doc) => {
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
-      res.json({ message: "Histórico limpo com sucesso." });
+      const docs = snapshot.docs;
+      
+      if (docs.length === 0) {
+        return res.json({ message: "Histórico já está vazio." });
+      }
+
+      console.log(`Limpando ${docs.length} documentos...`);
+
+      // O Firestore permite no máximo 500 operações por batch
+      for (let i = 0; i < docs.length; i += 500) {
+        const batch = writeBatch(db);
+        const chunk = docs.slice(i, i + 500);
+        chunk.forEach((d) => {
+          batch.delete(d.ref);
+        });
+        await batch.commit();
+        console.log(`Lote ${Math.floor(i/500) + 1} commitado.`);
+      }
+
+      res.json({ message: "Histórico limpo com sucesso.", deletedCount: docs.length });
     } catch (error) {
       console.error("Erro ao limpar Firestore:", error);
-      res.status(500).json({ error: "Falha ao limpar o banco de dados." });
+      res.status(500).json({ 
+        error: "Falha ao limpar o banco de dados.",
+        details: error instanceof Error ? error.message : String(error)
+      });
     }
   });
 

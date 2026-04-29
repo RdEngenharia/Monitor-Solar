@@ -63,7 +63,9 @@ export default function App() {
       if (error.code === 'auth/popup-blocked') {
         alert("O popup de login foi bloqueado pelo seu navegador. Por favor, autorize popups para este site.");
       } else if (error.code === 'auth/unauthorized-domain') {
-        alert("Este domínio não está autorizado no console do Firebase (Authorized Domains). Adicione " + window.location.hostname + " no console.");
+        alert("Domínio não autorizado! Adicione o domínio atual (" + window.location.hostname + ") no Console do Firebase > Authentication > Settings > Authorized Domains.");
+      } else if (error.code === 'auth/operation-not-allowed') {
+        alert("Método de login (Google) desativado! Ative o provedor Google no Console do Firebase > Authentication > Sign-in method.");
       } else {
         alert("Erro ao fazer login: " + (error.message || "Erro desconhecido"));
       }
@@ -90,11 +92,15 @@ export default function App() {
     try {
       setLoading(true);
       const response = await fetch('/api/clear', { method: 'DELETE' });
-      if (!response.ok) throw new Error("Erro ao limpar dados");
+      const data = await response.json();
+      
+      if (!response.ok) throw new Error(data.details || data.error || "Erro desconhecido");
+      
       setResults([]);
-    } catch (error) {
+      alert("Sucesso: " + data.message + (data.deletedCount ? ` (${data.deletedCount} itens removidos)` : ""));
+    } catch (error: any) {
       console.error("Erro ao limpar histórico:", error);
-      alert("Falha ao limpar histórico.");
+      alert("Falha ao limpar histórico: " + error.message);
     } finally {
       setLoading(false);
     }
