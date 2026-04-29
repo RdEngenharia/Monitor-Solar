@@ -1,10 +1,9 @@
 {
-  "projectId": "usina-rd-solar",
-  "appId": "1:509541158775:web:0695c00045cf9837069b72",
-  "apiKey": "AIzaSyAIrmFfKlMNmTS8YR_cRPbnfY5hEzfqOuw",
-  "authDomain": "usina-rd-solar.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-9533b4bc-25f8-4c8a-a5be-c14cf3aece9f",
-  "storageBucket": "usina-rd-solar.firebasestorage.app",
-  "messagingSenderId": "509541158775",
-  "measurementId": ""
+  "projectId": "rd-solar-monitor",
+  "appId": "1:654391531212:web:f584449452af5c62fd9469",
+  "apiKey": "AIzaSyB67DsSDxM2-nt9zlHLesH6nP663--5YwU",
+  "authDomain": "rd-solar-monitor.firebaseapp.com",
+  "storageBucket": "rd-solar-monitor.firebasestorage.app",
+  "messagingSenderId": "654391531212",
+  "firestoreDatabaseId": "(default)"
 }

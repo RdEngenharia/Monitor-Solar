@@ -69,9 +69,10 @@ export default function App() {
     }
   };
 
-  const getStatusIcon = (termo: string) => {
-    if (termo.includes('reclamações') || termo.includes('problemas')) return <ShieldAlert className="text-amber-500" size={18} />;
-    if (termo.includes('preço')) return <TrendingDown className="text-emerald-500" size={18} />;
+  const getStatusIcon = (label: string) => {
+    const low = label.toLowerCase();
+    if (low.includes('reclamação') || low.includes('problema')) return <ShieldAlert className="text-amber-500" size={18} />;
+    if (low.includes('preço') || low.includes('oportunidade')) return <TrendingDown className="text-emerald-500" size={18} />;
     return <Info className="text-blue-500" size={18} />;
   };
 
@@ -188,11 +189,22 @@ export default function App() {
                       <div className="flex items-start justify-between gap-4 mb-3">
                         <div className="flex items-center gap-2">
                           <span className="p-1.5 bg-slate-50 rounded-lg group-hover:bg-orange-50 transition-colors">
-                            {getStatusIcon(res.termo_origem)}
+                            {getStatusIcon(res.categoria || res.termo_origem)}
                           </span>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            {res.termo_origem}
-                          </span>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              {res.termo_origem}
+                            </span>
+                            {res.categoria && (
+                              <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-sm w-fit ${
+                                res.impacto === 'Alto' ? 'bg-red-100 text-red-600' : 
+                                res.impacto === 'Médio' ? 'bg-orange-100 text-orange-600' : 
+                                'bg-blue-100 text-blue-600'
+                              }`}>
+                                IA: {res.categoria} • IMPACTO {res.impacto}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <a 
                           href={res.link} 
@@ -206,9 +218,14 @@ export default function App() {
                       <h4 className="font-bold text-slate-800 leading-tight mb-2 group-hover:text-orange-600 transition-colors">
                         {res.titulo}
                       </h4>
-                      <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed mb-4">
+                      <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed mb-1">
                         {res.descricao}
                       </p>
+                      {res.justificativa && (
+                        <p className="text-[11px] italic text-slate-400 mb-4 px-3 py-2 bg-slate-50 border-l-2 border-slate-200 rounded-r-lg">
+                          " {res.justificativa} "
+                        </p>
+                      )}
                       <div className="flex items-center justify-between pt-4 border-t border-slate-50">
                         <span className="text-[10px] text-slate-300 font-medium">COLETADO EM: {res.data_coleta}</span>
                         <span className="text-[10px] text-orange-500 font-bold tracking-widest uppercase">Porto Seguro / BA</span>
