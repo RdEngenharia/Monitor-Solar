@@ -8,28 +8,40 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, query, orderBy, limit, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 
-// Carrega config do Firebase
-let firebaseConfig: any;
+// Carrega config do Firebase (Resiliente para Vercel)
+let firebaseConfig: any = {};
 try {
   const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
   if (fs.existsSync(configPath)) {
     firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-  } else {
-    firebaseConfig = {
-      apiKey: process.env.VITE_FIREBASE_API_KEY,
-      authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.VITE_FIREBASE_APP_ID,
-      firestoreDatabaseId: process.env.VITE_FIREBASE_DATABASE_ID || '(default)'
-    };
   }
 } catch (e) {
-  console.error("Erro ao carregar Firebase Config:", e);
+  console.warn("Aviso: Falha ao carregar firebase-applet-config.json");
 }
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+
+// Fallback para variáveis de ambiente
+if (!firebaseConfig.apiKey) {
+  firebaseConfig = {
+    apiKey: process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY,
+    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || process.env.FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID,
+    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || process.env.FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.VITE_FIREBASE_APP_ID || process.env.FIREBASE_APP_ID,
+    firestoreDatabaseId: (process.env.VITE_FIREBASE_DATABASE_ID || process.env.FIREBASE_DATABASE_ID || '(default)')
+  };
+}
+
+let firebaseApp: any;
+let db: any;
+
+try {
+  firebaseApp = initializeApp(firebaseConfig);
+  db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+} catch (e) {
+  console.error("ERRO CRITICAL: Falha ao inicializar Firebase. Verifique suas chaves de API.", e);
+}
+
 
 // Inicialização Gemini para Cron/Backend
 let genAI: GoogleGenerativeAI | null = null;
@@ -120,6 +132,17 @@ const PORT = 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// Rota de Diagnóstico
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    vercel: !!process.env.VERCEL,
+    firebase: !!firebaseConfig.apiKey,
+    serper: !!(process.env.serper || process.env.SERPER_API_KEY),
+    gemini: !!process.env.GEMINI_API_KEY
+  });
+});
 
 // API para executar o monitoramento diretamente (Dashboard ou Vercel Cron)
 app.all("/api/monitor", async (req, res) => {
@@ -270,7 +293,7 @@ app.get("/api/results", async (req, res) => {
     res.json(data);
   } catch (error: any) {
     console.error("Erro ao buscar resultados do Firestore:", error);
-    res.status(500).json({ error: "Erro ao consultar o banco de dados.", details: error.message });
+    res.status(500).json({ error: "Erro ao consultar o banco de dados.", details: error.message || String(error) });
   }
 });
 
@@ -301,6 +324,16 @@ app.delete("/api/clear", async (req, res) => {
       details: error.message || String(error)
     });
   }
+});
+
+// Middleware Global de Erro para evitar HTML na Vercel
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("Erro Crítico no Servidor:", err);
+  res.status(500).json({
+    error: "Erro interno no servidor (Crash)",
+    details: err.message || String(err),
+    path: req.path
+  });
 });
 
 export default app;

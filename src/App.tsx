@@ -101,7 +101,10 @@ export default function App() {
       }
 
       if (!response.ok) {
-        throw new Error(data.error || data.details || "Erro desconhecido no servidor");
+        if (response.status === 504 || response.status === 408) {
+          throw new Error("O servidor da Vercel demorou muito para responder (Timeout). Tente novamente ou use um plano Pro.");
+        }
+        throw new Error(data.error || data.details || `Erro ${response.status} no servidor`);
       }
       
       console.log("Monitoramento finalizado pelo servidor:", data);
