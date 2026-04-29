@@ -13,7 +13,8 @@ import {
   ShieldAlert,
   Info,
   LogIn,
-  User
+  User,
+  Trash2
 } from 'lucide-react';
 import { db, auth, signInWithGoogle } from './lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
@@ -54,6 +55,21 @@ export default function App() {
     };
   }, []);
 
+  const handleLogin = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      console.error("Erro completo do Firebase Login:", error);
+      if (error.code === 'auth/popup-blocked') {
+        alert("O popup de login foi bloqueado pelo seu navegador. Por favor, autorize popups para este site.");
+      } else if (error.code === 'auth/unauthorized-domain') {
+        alert("Este domínio não está autorizado no console do Firebase (Authorized Domains). Adicione " + window.location.hostname + " no console.");
+      } else {
+        alert("Erro ao fazer login: " + (error.message || "Erro desconhecido"));
+      }
+    }
+  };
+
   const runMonitor = async () => {
     setLoading(true);
     setStatus('running');
@@ -64,6 +80,21 @@ export default function App() {
     } catch (error) {
       console.error("Erro ao rodar monitoramento:", error);
       setStatus('error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearHistory = async () => {
+    if (!confirm("Tem certeza que deseja limpar todo o histórico de pesquisas?")) return;
+    try {
+      setLoading(true);
+      const response = await fetch('/api/clear', { method: 'DELETE' });
+      if (!response.ok) throw new Error("Erro ao limpar dados");
+      setResults([]);
+    } catch (error) {
+      console.error("Erro ao limpar histórico:", error);
+      alert("Falha ao limpar histórico.");
     } finally {
       setLoading(false);
     }
@@ -85,7 +116,7 @@ export default function App() {
             <div className="bg-orange-500 p-2 rounded-lg text-white shadow-sm ring-1 ring-orange-600/20">
               <Sun size={20} className="animate-pulse" />
             </div>
-            <h1 className="text-lg font-semibold tracking-tight">SolarWatch <span className="text-slate-400 font-normal">Porto Seguro + Firebase</span></h1>
+            <h1 className="text-lg font-semibold tracking-tight">SolarWatch <span className="text-slate-400 font-normal">Extremo Sul • Homologação & Coelba</span></h1>
           </div>
           <div className="flex items-center gap-4">
             {user ? (
@@ -95,10 +126,21 @@ export default function App() {
               </div>
             ) : (
               <button 
-                onClick={() => signInWithGoogle()}
+                onClick={handleLogin}
                 className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-900 transition-colors"
               >
                 <LogIn size={14} /> Login
+              </button>
+            )}
+            {user && (
+              <button
+                onClick={clearHistory}
+                disabled={loading}
+                className="flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-red-600 transition-all active:scale-95 disabled:opacity-50"
+                title="Limpar Histórico"
+              >
+                <Trash2 size={16} />
+                <span className="hidden sm:inline">Limpar</span>
               </button>
             )}
             <button
@@ -243,7 +285,7 @@ export default function App() {
       <footer className="fixed bottom-0 left-0 right-0 h-8 bg-white border-t border-slate-200 px-4 flex items-center justify-between z-40 text-[10px] text-slate-400 font-medium uppercase tracking-[0.1em]">
         <div className="flex gap-4">
           <span>SISTEMA: ATIVO</span>
-          <span>MOTOR: PYTHON SÊNIOR SCRAPER</span>
+          <span>MOTOR: NODE.JS + SERPER + GEMINI 1.5</span>
         </div>
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${loading ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}`}></div>
