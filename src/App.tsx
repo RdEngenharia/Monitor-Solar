@@ -92,14 +92,17 @@ export default function App() {
     try {
       // O Servidor agora faz a busca E a análise IA (Melhor para Cron Jobs)
       const response = await fetch('/api/monitor', { method: 'POST' });
-      if (!response.ok) throw new Error("Erro ao executar monitoramento no servidor");
-      
       const data = await response.json();
-      console.log("Monitoramento finalizado pelo servidor:", data);
+
+      if (!response.ok) {
+        throw new Error(data.error || data.details || "Erro desconhecido no servidor");
+      }
       
+      console.log("Monitoramento finalizado pelo servidor:", data);
       setStatus('success');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao rodar monitoramento:", error);
+      alert(`Falha no Monitoramento: ${error.message}`);
       setStatus('error');
     } finally {
       setLoading(false);
