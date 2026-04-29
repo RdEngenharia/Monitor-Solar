@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper: Valid ID check
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+
+    // Helper: Check if it's a valid SolarMention
+    function isValidSolarMention(data) {
+      return data.keys().hasAll(['termo_origem', 'titulo', 'link', 'descricao', 'data_coleta'])
+        && data.keys().size() == 5
+        && data.termo_origem is string && data.termo_origem.size() <= 200
+        && data.titulo is string && data.titulo.size() <= 500
+        && data.link is string && data.link.size() <= 1000
+        && data.descricao is string && data.descricao.size() <= 2000
+        && data.data_coleta is string;
+    }
+
+    match /solar_mentions/{mentionId} {
+      allow read: if true; // Public check for reports
+      allow create: if isValidSolarMention(request.resource.data);
+      allow update, delete: if false; // Data is immutable after collection for audit
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "entities": {
+    "SolarMention": {
+      "title": "Solar Mention",
+      "description": "A web result about solar energy in Porto Seguro",
+      "type": "object",
+      "properties": {
+        "termo_origem": { "type": "string" },
+        "titulo": { "type": "string" },
+        "link": { "type": "string" },
+        "descricao": { "type": "string" },
+        "data_coleta": { "type": "string" }
+      },
+      "required": ["termo_origem", "titulo", "link", "data_coleta"]
+    }
+  },
+  "firestore": {
+    "solar_mentions": {
+      "schema": "SolarMention",
+      "description": "Collection of monitored solar energy results"
+    }
+  }
+}
