@@ -13,59 +13,79 @@ const firebaseConfig = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'fire
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 
-// Inicialização tardia para evitar erros no boot (conforme diretrizes)
-let model: any = null;
-
-function getGeminiModel() {
-  if (!model) {
+// Inicialização Gemini para Cron/Backend
+let genAI: GoogleGenerativeAI | null = null;
+function getGenAI() {
+  if (!genAI) {
     const key = process.env.GEMINI_API_KEY;
-    if (!key) {
-      throw new Error("Variável de ambiente GEMINI_API_KEY não configurada.");
-    }
-    const genAI = new GoogleGenerativeAI(key);
-    model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    if (!key) throw new Error("GEMINI_API_KEY não configurada no servidor.");
+    genAI = new GoogleGenerativeAI(key);
   }
-  return model;
+  return genAI;
 }
 
-async function analisarComIA(titulo: string, descricao: string) {
-  const prompt = `
-    Aja como um Engenheiro Eletrotécnico Sênior e Especialista em SEO Técnico de Porto Seguro, Bahia. 
-    Analise este resultado de busca focado em prospecção de alta precisão:
+async function enviarPush(titulo: string, corpo: string) {
+  const token = process.env.PUSHBULLET_TOKEN;
+  if (!token) return;
 
-    Título: ${titulo}
-    Conteúdo: ${descricao}
-
-    Sua missão é detectar LEADS QUENTES (Oportunidades reais) para:
-    1. Homologação de Microgeração Solar (Prazos Coelba, Projetos, Vistorias)
-    2. Engenharia de Redes (Aumento de Carga, Alteração de Padrão Monofásico p/ Trifásico)
-    3. Gestão Energética (Alteração de Rateio entre apartamentos/casas, Gestão de Créditos)
-
-    Classifique como "Oportunidade" apenas se houver intenção de contratação, pedido de indicação ou dúvida técnica urgente.
-    Classifique como "Coelba" ou "Homologação" se for post informativo técnico.
-    Classifique como "Spam" se for propaganda genérica, venda de motos/veículos, ou notícias irrelevantes.
-
-    Responda EXCLUSIVAMENTE em JSON:
-    {
-        "categoria": "Oportunidade" | "Homologação" | "Coelba" | "Spam",
-        "justificativa": "Explicação técnica curta de por que isso é um lead ou spam",
-        "impacto": "Alto" (se pedir profissional/indicação/preço), "Médio" ou "Baixo"
-    }
-  `;
   try {
-    const aiModel = getGeminiModel();
-    const result = await aiModel.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(text);
-    return parsed;
-  } catch (error) {
-    console.error("Erro na IA:", error);
-    return {
-      categoria: "Informativo",
-      justificativa: "Erro na análise automatizada",
-      impacto: "Baixo"
-    };
+    await axios.post('https://api.pushbullet.com/v2/pushes', {
+      type: 'note',
+      title: titulo,
+      body: corpo
+    }, {
+      headers: {
+        'Access-Token': token,
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log("[Pushbullet] Notificação enviada.");
+  } catch (err) {
+    console.error("[Pushbullet] Erro ao enviar notificação:", err);
+  }
+}
+
+async function analisarLead(titulo: string, snippet: string) {
+  try {
+    const model = getGenAI().getGenerativeModel({ model: "gemini-1.5-flash" });
+    const prompt = `
+      Você é um engenheiro de dados especialista em prospecção para a RD Engenharia (Bahia).
+      Analise se este post é uma OPORTUNIDADE REAL ou RUÍDO.
+
+      Texto: ${titulo} - ${snippet}
+
+      REGRAS DE FILTRAGEM (RD ENGENHARIA):
+      1. IDENTIFIQUE A INTENÇÃO: O autor é um cliente procurando um engenheiro ou é empresa postando propaganda?
+      2. IGNORE: Marketing, agradecer a parceiro, propaganda de instalador solar.
+      3. APROVE: Perguntas diretas ('Alguém conhece...', 'Preciso de...', 'Indicação de engenheiro...').
+      4. FOCO TÉCNICO: Aumento de carga, homologação Coelba, alteração de rateio.
+      5. GEOGRAFIA: Identifique a CIDADE mencionada.
+
+      Responda EXCLUSIVAMENTE em JSON:
+      {
+        "status": "URGENTE" | "NORMAL" | "RUÍDO",
+        "categoria": "Oportunidade" | "Homologação" | "Coelba" | "Spam",
+        "localizacao": "Cidade identificada ou 'Bahia (Geral)'",
+        "justificativa": "breve explicação"
+      }
+    `;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+    const analise = JSON.parse(text);
+
+    // Se for um lead real, envia notificação Push (Gatilho de Alerta)
+    if (analise.status !== "RUÍDO" && analise.categoria !== "Spam") {
+      await enviarPush(
+        `🚨 NOVO LEAD - RD ENGENHARIA`,
+        `📍 Local: ${analise.localizacao}\n📝 Pedido: ${titulo}\n📄 Resumo: ${analise.justificativa}`
+      );
+    }
+
+    return analise;
+  } catch (err) {
+    console.error("Erro na análise Gemini:", err);
+    return { status: "NORMAL", categoria: "Oportunidade", localizacao: "Bahia (Geral)", justificativa: "Erro na análise" };
   }
 }
 
@@ -76,101 +96,112 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
-  // API para executar o monitoramento diretamente via Node
-  app.post("/api/monitor", async (req, res) => {
-    console.log("Iniciando monitoramento via Serper + Gemini (Node.js)...");
+  // API para executar o monitoramento diretamente (Dashboard ou Vercel Cron)
+  app.all("/api/monitor", async (req, res) => {
+    // Vercel Cron envia um cabeçalho de autorização se configurado, mas aqui permitimos gatilho direto
+    console.log("Iniciando Monitoramento Automático (Bahia)...");
     
-    const SERPER_KEY = process.env.SERPER_API_KEY;
+    const SERPER_KEY = process.env.serper;
     if (!SERPER_KEY) {
-      return res.status(500).json({ error: "Configuração ausente: SERPER_API_KEY." });
+      return res.status(500).json({ error: "Configuração ausente: serper (API Key)." });
     }
-    const termos = [
-      // Perguntas e Indicações Diretas (Exatas do Usuário)
-      'site:facebook.com "Porto Seguro" "alguém indica" "engenheiro" "padrão" -notícia -curso -vaga -emprego -"reclame aqui"',
-      'site:facebook.com "Trancoso" "quem faz" "homologação" "Coelba" -notícia -curso -vaga -emprego -"reclame aqui"',
-      'site:instagram.com "Arraial d\'Ajuda" "indicação" "alteração de carga" -notícia -curso -vaga -emprego -"reclame aqui"',
-      'site:facebook.com "Porto Seguro" "rateio" "energia solar" "grupo" -notícia -curso -vaga -emprego -"reclame aqui"',
 
-      // Variações Criativas de Alta Intenção
-      'site:facebook.com "Porto Seguro" "quem faz" "projeto elétrico" residencial -notícia -curso -vaga -emprego',
-      'site:facebook.com "Porto Seguro" "indicação" "aumento de carga" trifásico -notícia -curso -vaga -emprego',
-      'site:facebook.com "Trancoso" "alguém indica" engenheiro Coelba -notícia -curso -vaga -emprego',
-      'site:facebook.com "Arraial d\'Ajuda" "preciso de um" engenheiro eletricista -notícia -curso -vaga -emprego',
-      'site:facebook.com "Porto Seguro" "padrão monofásico para trifásico" custo -notícia -curso -vaga -emprego',
-      'site:facebook.com "Porto Seguro" "dividir energia solar" entre casas -notícia -curso -vaga -emprego',
-      'site:facebook.com "Bahia" "homologação de microgeração" Coelba passo a passo -notícia -curso -vaga -emprego',
-      
-      // Google Search (Perguntas em Blogs e Fóruns)
-      '"alguém indica" engenheiro para aumento de carga em Porto Seguro',
-      '"como fazer" rateio de energia solar entre casas Coelba',
-      'Projeto de "homologação de energia solar" preço Bahia',
-      'Alteração de "padrão de energia" para trifásico Coelba Porto Seguro',
-      'Engenheiro para "legalizar" energia solar Coelba Porto Seguro',
-      '"quem projeta" entrada de serviço padrão Coelba Porto Seguro',
-      
-      // Instagram (Busca de termos em publicações)
-      'site:instagram.com "Porto Seguro" "engenheiro elétrico" indicação -vaga',
-      'site:instagram.com "Trancoso" "homologação solar" Coelba -vaga',
-      'site:instagram.com "Arraial d\'Ajuda" "projeto elétrico" orçamento -vaga'
+    const termos = [
+      'site:facebook.com "alguém indica" "engenheiro" "Coelba"',
+      'site:facebook.com "quem faz" "homologação" "solar" "Bahia"',
+      'site:facebook.com "preciso aumentar a carga" "padrão"',
+      'site:instagram.com "alguém conhece" "engenheiro" "elétrico" "Bahia"',
+      'site:facebook.com "alteração de rateio" "energia solar" "ajuda"'
     ];
 
     try {
-      const resultadosEnriquecidos = [];
-      const seenLinks = new Set(); // Evita duplicados na mesma rodada
+      const resultsProcessed = [];
+      const seenLinks = new Set();
 
       for (const termo of termos) {
-        console.log(`Buscando: ${termo}`);
         const response = await axios.post('https://google.serper.dev/search', {
           q: termo,
           gl: "br",
           hl: "pt-br",
-          num: 15,
+          num: 10,
           tbs: "qdr:m"
         }, {
-          headers: {
-            'X-API-KEY': SERPER_KEY,
-            'Content-Type': 'application/json'
-          }
+          headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' }
         });
 
-        const links = response.data.organic || [];
+        const organic = response.data.organic || [];
+        for (const item of organic) {
+          if (!seenLinks.has(item.link)) {
+            seenLinks.add(item.link);
+            
+            // Analisa com Gemini no SERVIDOR (Ideal para Cron Jobs)
+            const analise = await analisarLead(item.title, item.snippet);
+            
+            if (analise.status === "RUÍDO" || analise.categoria === "Spam") {
+              continue; 
+            }
 
-        for (const link of links) {
-          if (seenLinks.has(link.link)) continue;
-          seenLinks.add(link.link);
+            const dataToSave = {
+              termo_origem: termo,
+              titulo: item.title,
+              link: item.link,
+              descricao: item.snippet,
+              categoria: analise.categoria,
+              status_prioridade: analise.status,
+              localizacao: analise.localizacao,
+              justificativa: analise.justificativa,
+              data_coleta: new Date().toLocaleString('pt-BR'),
+              timestamp: new Date().toISOString(),
+              impacto: analise.status === "URGENTE" ? "Alto" : "Médio"
+            };
 
-          console.log(`Analisando link: ${link.title}`);
-          const analise = await analisarComIA(link.title, link.snippet);
-          
-          // Se for Spam, ignoramos o resultado
-          if (analise.categoria === 'Spam') {
-            console.log("Resultado ignorado: Spam identificado.");
-            continue;
+            const cleanId = item.link.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 128);
+            await setDoc(doc(db, 'solar_mentions', cleanId), dataToSave, { merge: true });
+            resultsProcessed.push(dataToSave);
           }
-
-          const item = {
-            termo_origem: termo,
-            titulo: link.title,
-            link: link.link,
-            descricao: link.snippet,
-            data_coleta: new Date().toLocaleString('pt-BR'),
-            ...analise,
-            timestamp: new Date().toISOString()
-          };
-
-          // Deduplicação no Firestore: Usamos o link como ID fixo. 
-          // Se o link já existir, ele só será atualizado se os dados mudarem.
-          const cleanId = link.link.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 128);
-          await setDoc(doc(db, 'solar_mentions', cleanId), item, { merge: true });
-          
-          resultadosEnriquecidos.push(item);
         }
       }
 
-      res.json({ message: "Monitoramento concluído com foco técnico.", count: resultadosEnriquecidos.length });
+      res.json({ 
+        message: "Monitoramento concluído com sucesso.", 
+        new_leads: resultsProcessed.length,
+        status: resultsProcessed.length > 0 ? "Leads encontrados" : "Nenhum lead novo"
+      });
     } catch (error) {
-      console.error("Erro no monitoramento:", error);
-      res.status(500).json({ error: "Falha ao executar monitoramento no servidor." });
+      console.error("Erro no cron monitor:", error);
+      res.status(500).json({ error: "Falha ao executar monitoramento autônomo." });
+    }
+  });
+
+  // API para testar o fluxo de prospecção e notificação
+  app.post("/api/test-lead", async (req, res) => {
+    const leadTeste = {
+      termo_origem: "SIMULAÇÃO MANUAL",
+      titulo: "[TESTE] Alguém indica engenheiro para homologação Coelba em Salvador?",
+      link: "https://facebook.com/teste-lead-" + Date.now(),
+      descricao: "Preciso de um engenheiro urgente para projeto de aumento de carga em Salvador.",
+      categoria: "Oportunidade",
+      status_prioridade: "URGENTE",
+      localizacao: "Salvador (Simulado)",
+      justificativa: "Lead de teste gerado para conferir se o Pushbullet e o Firebase estão funcionando.",
+      data_coleta: new Date().toLocaleString('pt-BR'),
+      timestamp: new Date().toISOString(),
+      impacto: "Alto"
+    };
+
+    try {
+      const cleanId = "test_" + Date.now();
+      await setDoc(doc(db, 'solar_mentions', cleanId), leadTeste);
+      
+      await enviarPush(
+        "🚨 TESTE DE PROSPECÇÃO - RD",
+        `📍 Local: ${leadTeste.localizacao}\n📝 Pedido: ${leadTeste.titulo}\n✅ Sistema funcionando!`
+      );
+
+      res.json({ message: "Lead de teste enviado com sucesso!", lead: leadTeste });
+    } catch (error) {
+      console.error("Erro no teste:", error);
+      res.status(500).json({ error: "Falha ao enviar lead de teste." });
     }
   });
 

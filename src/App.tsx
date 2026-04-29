@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sun, 
@@ -17,8 +17,9 @@ import {
   Trash2
 } from 'lucide-react';
 import { db, auth, signInWithGoogle } from './lib/firebase';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { GoogleGenAI } from "@google/genai";
 
 interface SearchResult {
   termo_origem: string;
@@ -26,13 +27,26 @@ interface SearchResult {
   link: string;
   descricao: string;
   data_coleta: string;
+  categoria?: string;
+  status_prioridade?: string;
+  justificativa?: string;
+  impacto?: string;
+  timestamp?: string;
+  localizacao?: string;
 }
 
 export default function App() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'running' | 'success' | 'checking' | 'error'>('idle');
   const [user, setUser] = useState<FirebaseUser | null>(null);
+
+  // Inicializa Gemini Client Side conforme SKILL.md
+  const genAI = useMemo(() => {
+    const key = (process.env as any).GEMINI_API_KEY;
+    if (!key) return null;
+    return new GoogleGenAI({ apiKey: key });
+  }, []);
 
   useEffect(() => {
     // Listener de Autenticação
@@ -76,8 +90,13 @@ export default function App() {
     setLoading(true);
     setStatus('running');
     try {
+      // O Servidor agora faz a busca E a análise IA (Melhor para Cron Jobs)
       const response = await fetch('/api/monitor', { method: 'POST' });
-      if (!response.ok) throw new Error("Erro no servidor");
+      if (!response.ok) throw new Error("Erro ao executar monitoramento no servidor");
+      
+      const data = await response.json();
+      console.log("Monitoramento finalizado pelo servidor:", data);
+      
       setStatus('success');
     } catch (error) {
       console.error("Erro ao rodar monitoramento:", error);
@@ -115,6 +134,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-orange-100 selection:text-orange-900">
+      {loading && status === 'checking' && (
+        <div className="fixed top-0 left-0 w-full h-1 bg-orange-200 z-[100]">
+          <motion.div 
+            className="h-full bg-orange-600"
+            animate={{ width: ['0%', '100%'] }}
+            transition={{ duration: 15, repeat: Infinity }}
+          />
+        </div>
+      )}
       {/* Top Banner */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -150,6 +178,17 @@ export default function App() {
               </button>
             )}
             <button
+              onClick={async () => {
+                if (confirm("Deseja enviar um lead de teste para seu celular e Firebase?")) {
+                  const res = await fetch('/api/test-lead', { method: 'POST' });
+                  if (res.ok) alert("Teste enviado! Verifique seu Pushbullet e a lista de resultados.");
+                }
+              }}
+              className="hidden md:block text-[10px] font-bold text-slate-400 hover:text-slate-900 transition-colors uppercase tracking-widest border border-slate-200 px-3 py-2 rounded-full"
+            >
+              Simular Lead
+            </button>
+            <button
               onClick={runMonitor}
               disabled={loading}
               className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
@@ -159,7 +198,9 @@ export default function App() {
               }`}
             >
               {loading ? <RefreshCcw size={16} className="animate-spin" /> : <Search size={16} />}
-              {loading ? 'Monitorando...' : 'Iniciar Busca'}
+              {loading 
+                ? (status === 'checking' ? 'Analisando Leads...' : 'Buscando...') 
+                : 'Iniciar Busca'}
             </button>
           </div>
         </div>
@@ -244,13 +285,20 @@ export default function App() {
                               {res.termo_origem}
                             </span>
                             {res.categoria && (
-                              <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-sm w-fit ${
-                                res.impacto === 'Alto' ? 'bg-red-100 text-red-600' : 
-                                res.impacto === 'Médio' ? 'bg-orange-100 text-orange-600' : 
-                                'bg-blue-100 text-blue-600'
-                              }`}>
-                                IA: {res.categoria} • IMPACTO {res.impacto}
-                              </span>
+                              <div className="flex flex-wrap gap-1">
+                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-sm w-fit ${
+                                  res.impacto === 'Alto' ? 'bg-red-100 text-red-600' : 
+                                  res.impacto === 'Médio' ? 'bg-orange-100 text-orange-600' : 
+                                  'bg-blue-100 text-blue-600'
+                                }`}>
+                                  IA: {res.categoria} • IMPACTO {res.impacto}
+                                </span>
+                                {res.status_prioridade === 'URGENTE' && (
+                                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-sm w-fit bg-red-600 text-white animate-pulse">
+                                    URGENTE
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -276,7 +324,9 @@ export default function App() {
                       )}
                       <div className="flex items-center justify-between pt-4 border-t border-slate-50">
                         <span className="text-[10px] text-slate-300 font-medium">COLETADO EM: {res.data_coleta}</span>
-                        <span className="text-[10px] text-orange-500 font-bold tracking-widest uppercase">Porto Seguro / BA</span>
+                        <span className="text-[10px] text-orange-500 font-bold tracking-widest uppercase flex items-center gap-1">
+                          <MapPin size={10} /> {res.localizacao || "Bahia (Geral)"}
+                        </span>
                       </div>
                     </motion.div>
                   ))}

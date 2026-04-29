@@ -13,13 +13,15 @@ service cloud.firestore {
 
     // Helper: Check if it's a valid SolarMention
     function isValidSolarMention(data) {
-      return data.keys().hasAll(['termo_origem', 'titulo', 'link', 'descricao', 'data_coleta'])
-        && data.keys().size() == 5
-        && data.termo_origem is string && data.termo_origem.size() <= 200
+      return data.keys().hasAll(['termo_origem', 'titulo', 'link', 'descricao', 'data_coleta', 'categoria', 'justificativa', 'impacto', 'timestamp', 'localizacao'])
+        && data.termo_origem is string && data.termo_origem.size() <= 300
         && data.titulo is string && data.titulo.size() <= 500
         && data.link is string && data.link.size() <= 1000
-        && data.descricao is string && data.descricao.size() <= 2000
-        && data.data_coleta is string;
+        && data.descricao is string && data.descricao.size() <= 3000
+        && data.categoria is string
+        && data.justificativa is string
+        && data.impacto is string
+        && data.localizacao is string;
     }
 
     match /solar_mentions/{mentionId} {
