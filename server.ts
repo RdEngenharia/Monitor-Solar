@@ -151,48 +151,55 @@ app.all("/api/monitor", async (req, res) => {
     const seenLinks = new Set();
 
     for (const termo of termos) {
+      if (resultsProcessed.length >= 10) break; // Limite para evitar timeout na Vercel (10s free plan)
       console.log(`Buscando termo: ${termo}`);
-      const response = await axios.post('https://google.serper.dev/search', {
-        q: termo,
-        gl: "br",
-        hl: "pt-br",
-        num: 10,
-        tbs: "qdr:m"
-      }, {
-        headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' }
-      });
+      try {
+        const response = await axios.post('https://google.serper.dev/search', {
+          q: termo,
+          gl: "br",
+          hl: "pt-br",
+          num: 5, // Reduzido de 10 para 5 para ser mais rápido
+          tbs: "qdr:m"
+        }, {
+          headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' },
+          timeout: 5000 // 5 segundos max para busca
+        });
 
-      const organic = response.data.organic || [];
-      console.log(`Encontrados ${organic.length} resultados para: ${termo}`);
+        const organic = response.data.organic || [];
+        console.log(`Encontrados ${organic.length} resultados para: ${termo}`);
 
-      for (const item of organic) {
-        if (!seenLinks.has(item.link)) {
-          seenLinks.add(item.link);
-          
-          const analise = await analisarLead(item.title, item.snippet);
-          
-          if (analise.status === "RUÍDO" || analise.categoria === "Spam") {
-            continue; 
+        for (const item of organic) {
+          if (resultsProcessed.length >= 10) break;
+          if (!seenLinks.has(item.link)) {
+            seenLinks.add(item.link);
+            
+            const analise = await analisarLead(item.title, item.snippet);
+            
+            if (analise.status === "RUÍDO" || analise.categoria === "Spam") {
+              continue; 
+            }
+
+            const dataToSave = {
+              termo_origem: termo,
+              titulo: item.title,
+              link: item.link,
+              descricao: item.snippet,
+              categoria: analise.categoria,
+              status_prioridade: analise.status,
+              localizacao: analise.localizacao,
+              justificativa: analise.justificativa,
+              data_coleta: new Date().toLocaleString('pt-BR'),
+              timestamp: new Date().toISOString(),
+              impacto: analise.status === "URGENTE" ? "Alto" : "Médio"
+            };
+
+            const cleanId = item.link.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 128);
+            await setDoc(doc(db, 'solar_mentions', cleanId), dataToSave, { merge: true });
+            resultsProcessed.push(dataToSave);
           }
-
-          const dataToSave = {
-            termo_origem: termo,
-            titulo: item.title,
-            link: item.link,
-            descricao: item.snippet,
-            categoria: analise.categoria,
-            status_prioridade: analise.status,
-            localizacao: analise.localizacao,
-            justificativa: analise.justificativa,
-            data_coleta: new Date().toLocaleString('pt-BR'),
-            timestamp: new Date().toISOString(),
-            impacto: analise.status === "URGENTE" ? "Alto" : "Médio"
-          };
-
-          const cleanId = item.link.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 128);
-          await setDoc(doc(db, 'solar_mentions', cleanId), dataToSave, { merge: true });
-          resultsProcessed.push(dataToSave);
         }
+      } catch (err: any) {
+        console.error(`Erro buscando termo ${termo}:`, err.message);
       }
     }
 

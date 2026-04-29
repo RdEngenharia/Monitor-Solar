@@ -92,7 +92,13 @@ export default function App() {
     try {
       // O Servidor agora faz a busca E a análise IA (Melhor para Cron Jobs)
       const response = await fetch('/api/monitor', { method: 'POST' });
-      const data = await response.json();
+      const responseText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error("O servidor demorou muito ou falhou (Timeout/Crash). Verifique as chaves de API na Vercel.");
+      }
 
       if (!response.ok) {
         throw new Error(data.error || data.details || "Erro desconhecido no servidor");
